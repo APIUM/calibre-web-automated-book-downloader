@@ -16,7 +16,7 @@ from config import _SUPPORTED_BOOK_LANGUAGE, BOOK_LANGUAGE
 from env import FLASK_HOST, FLASK_PORT, APP_ENV, CWA_DB_PATH, DEBUG, USING_EXTERNAL_BYPASSER, BUILD_VERSION, RELEASE_VERSION
 import backend
 
-from models import SearchFilters
+from models import SearchFilters, indexer_manager, IndexerConfig
 
 logger = setup_logger(__name__)
 app = Flask(__name__)
@@ -453,6 +453,77 @@ def api_clear_completed() -> Union[Response, Tuple[Response, int]]:
         return jsonify({"status": "cleared", "removed_count": removed_count})
     except Exception as e:
         logger.error_trace(f"Clear completed error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# Prowlarr API Endpoints (LazyLibrarian Compatible)
+
+@app.route('/api', methods=['GET'])
+def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
+    """
+    Prowlarr-compatible API endpoint matching LazyLibrarian interface.
+    
+    Supported commands:
+    - listProviders: Return current indexer configurations
+    - changeProvider: Add/modify indexer configuration from Prowlarr
+    - test: Test endpoint for Prowlarr connectivity
+    """
+    api_key = request.args.get('apikey')
+    cmd = request.args.get('cmd')
+    
+    # Skip API key validation for test command to allow Prowlarr connectivity test
+    if cmd != 'test':
+        # Validate API key using existing authentication if CWA_DB_PATH is set
+        if CWA_DB_PATH is not None:
+            if not authenticate():
+                return jsonify({"error": "Unauthorized"}), 401
+        elif not api_key:
+            return jsonify({"error": "API key required"}), 401
+    
+    try:
+        if cmd == 'listProviders':
+            return jsonify(indexer_manager.list_providers_api_response())
+        
+        elif cmd == 'changeProvider':
+            # Extract provider data from URL parameters
+            provider_data = {
+                'name': request.args.get('name'),
+                'type': request.args.get('type', request.args.get('providertype', 'newznab')),
+                'host': request.args.get('host'),
+                'prov_apikey': request.args.get('prov_apikey', ''),
+                'enabled': request.args.get('enabled', 'true').lower() == 'true',
+                'categories': request.args.get('categories', ''),
+                'priority': request.args.get('dlpriority', request.args.get('priority', '0')),
+                'altername': request.args.get('altername')
+            }
+            
+            if not provider_data['name'] or not provider_data['host']:
+                return jsonify({"error": "Missing required parameters: name, host"}), 400
+            
+            # Create and store indexer configuration
+            indexer_config = IndexerConfig.from_dict(provider_data)
+            indexer_manager.add_or_update_indexer(indexer_config)
+            
+            logger.info(f"Added/updated indexer from Prowlarr: {indexer_config.name}")
+            return jsonify({"status": "OK"})
+        
+        elif cmd == 'test':
+            # Simple connectivity test for Prowlarr
+            return jsonify({"status": "OK", "version": "1.0", "api": "prowlarr-compatible"})
+        
+        elif cmd == 'help':
+            # Return available commands
+            commands = {
+                'listProviders': 'List all configured indexers',
+                'changeProvider': 'Add or modify an indexer configuration',
+                'test': 'Test API connectivity'
+            }
+            return jsonify(commands)
+        
+        else:
+            return jsonify({"error": f"Unknown command: {cmd}"}), 400
+            
+    except Exception as e:
+        logger.error_trace(f"Prowlarr API error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.errorhandler(404)

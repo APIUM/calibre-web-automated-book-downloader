@@ -13,7 +13,7 @@ from logger import setup_logger
 from config import CUSTOM_SCRIPT
 from env import INGEST_DIR, TMP_DIR, MAIN_LOOP_SLEEP_TIME, USE_BOOK_TITLE, MAX_CONCURRENT_DOWNLOADS, DOWNLOAD_PROGRESS_UPDATE_INTERVAL
 from models import book_queue, BookInfo, QueueStatus, SearchFilters
-import book_manager
+import prowlarr_manager
 
 logger = setup_logger(__name__)
 
@@ -33,7 +33,7 @@ def search_books(query: str, filters: SearchFilters) -> List[Dict[str, Any]]:
         List[Dict]: List of book information dictionaries
     """
     try:
-        books = book_manager.search_books(query, filters)
+        books = prowlarr_manager.search_books(query, filters)
         return [_book_info_to_dict(book) for book in books]
     except Exception as e:
         logger.error_trace(f"Error searching books: {e}")
@@ -49,7 +49,7 @@ def get_book_info(book_id: str) -> Optional[Dict[str, Any]]:
         Optional[Dict]: Book information dictionary if found
     """
     try:
-        book = book_manager.get_book_info(book_id)
+        book = prowlarr_manager.get_book_info(book_id)
         return _book_info_to_dict(book)
     except Exception as e:
         logger.error_trace(f"Error getting book info: {e}")
@@ -66,7 +66,7 @@ def queue_book(book_id: str, priority: int = 0) -> bool:
         bool: True if book was successfully queued
     """
     try:
-        book_info = book_manager.get_book_info(book_id)
+        book_info = prowlarr_manager.get_book_info(book_id)
         book_queue.add(book_id, book_info, priority)
         logger.info(f"Book queued with priority {priority}: {book_info.title}")
         return True
@@ -146,7 +146,7 @@ def _download_book_with_cancellation(book_id: str, cancel_flag: Event) -> Option
             return None
         
         progress_callback = lambda progress: update_download_progress(book_id, progress)
-        success = book_manager.download_book(book_info, book_path, progress_callback, cancel_flag)
+        success = prowlarr_manager.download_book(book_info, book_path, progress_callback, cancel_flag)
         
         # Stop progress updates
         cancel_flag.wait(0.1)  # Brief pause for progress thread cleanup

@@ -11,7 +11,7 @@ import ssl
 import ipaddress
 
 from logger import setup_logger
-from config import PROXIES, AA_BASE_URL, CUSTOM_DNS, AA_AVAILABLE_URLS, DOH_SERVER
+from config import PROXIES, CUSTOM_DNS, DOH_SERVER
 import config
 
 logger = setup_logger(__name__)
@@ -320,21 +320,7 @@ def init_dns_resolvers():
 # Initialize DNS resolvers
 init_dns_resolvers()
 
-# Check available AA_BASE_URLs if set to auto
-if AA_BASE_URL == "auto":
-    logger.info(f"AA_BASE_URL: auto, checking available urls {AA_AVAILABLE_URLS}")
-    for url in AA_AVAILABLE_URLS:
-        try:
-            response = requests.get(url, proxies=PROXIES)
-            if response.status_code == 200:
-                AA_BASE_URL = url
-                break
-        except Exception as e:
-            logger.error_trace(f"Error checking {url}: {e}")
-    if AA_BASE_URL == "auto":
-        AA_BASE_URL = AA_AVAILABLE_URLS[0]
-config.AA_BASE_URL = AA_BASE_URL
-logger.info(f"AA_BASE_URL: {AA_BASE_URL}")
+# Anna's Archive URL checking removed - replaced by Prowlarr integration
 
 # Configure urllib opener with appropriate headers
 opener = urllib.request.build_opener()

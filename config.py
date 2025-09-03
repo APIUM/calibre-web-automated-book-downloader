@@ -10,8 +10,6 @@ logger = setup_logger(__name__)
 
 for key, value in env.__dict__.items():
     if not key.startswith('_'):
-        if key == "AA_DONATOR_KEY" and value.strip() != "":
-            value = "REDACTED"
         logger.info(f"{key}: {value}")
 
 with open("data/book-languages.json") as file:
@@ -66,11 +64,7 @@ if env.HTTPS_PROXY:
     PROXIES["https"] = env.HTTPS_PROXY
 logger.info(f"PROXIES: {PROXIES}")
 
-# Anna's Archive settings
-AA_BASE_URL = env._AA_BASE_URL
-AA_AVAILABLE_URLS = ["https://annas-archive.org", "https://annas-archive.se", "https://annas-archive.li"]
-AA_AVAILABLE_URLS.extend(env._AA_ADDITIONAL_URLS.split(","))
-AA_AVAILABLE_URLS = [url.strip() for url in AA_AVAILABLE_URLS if url.strip()]
+# Anna's Archive settings removed - replaced by Prowlarr integration
 
 # File format settings
 SUPPORTED_FORMATS = env._SUPPORTED_FORMATS.split(",")

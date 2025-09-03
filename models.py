@@ -9,6 +9,7 @@ from pathlib import Path
 import queue
 import time
 from env import INGEST_DIR, STATUS_TIMEOUT
+import json
 
 class QueueStatus(str, Enum):
     """Enum for possible book queue statuses."""
@@ -33,6 +34,48 @@ class QueueItem:
         return self.added_time < other.added_time
 
 @dataclass
+class IndexerConfig:
+    """Configuration for a Prowlarr-synced indexer."""
+    name: str
+    provider_type: str  # "newznab" or "torznab"
+    host: str
+    api_key: str
+    enabled: bool
+    categories: List[str] = field(default_factory=list)
+    priority: int = 0
+    alternative_name: Optional[str] = None
+    
+    def to_dict(self) -> Dict[str, any]:
+        """Convert to dictionary for storage/API responses."""
+        return {
+            'name': self.name,
+            'type': self.provider_type,
+            'host': self.host,
+            'enabled': self.enabled,
+            'categories': ','.join(self.categories),
+            'priority': self.priority,
+            'altername': self.alternative_name or self.name
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, any]) -> 'IndexerConfig':
+        """Create from dictionary (from storage/API calls)."""
+        categories = data.get('categories', '')
+        if isinstance(categories, str):
+            categories = [cat.strip() for cat in categories.split(',') if cat.strip()]
+        
+        return cls(
+            name=data['name'],
+            provider_type=data.get('type', data.get('providertype', 'newznab')),
+            host=data['host'],
+            api_key=data.get('prov_apikey', data.get('api_key', '')),
+            enabled=data.get('enabled', True),
+            categories=categories,
+            priority=int(data.get('priority', data.get('dlpriority', 0))),
+            alternative_name=data.get('altername')
+        )
+
+@dataclass
 class BookInfo:
     """Data class representing book information."""
     id: str
@@ -49,6 +92,7 @@ class BookInfo:
     download_path: Optional[str] = None
     priority: int = 0
     progress: Optional[float] = None
+    indexer_name: Optional[str] = None  # Track which indexer found this book
 
 class BookQueue:
     """Thread-safe book queue manager with priority support and cancellation."""
@@ -334,8 +378,87 @@ class BookQueue:
             self._status_timeout = timedelta(hours=hours)
 
 
-# Global instance of BookQueue
+class IndexerManager:
+    """Thread-safe indexer configuration manager."""
+    def __init__(self):
+        self._lock = Lock()
+        self._indexers: Dict[str, IndexerConfig] = {}
+        self._config_file = Path("data/indexers.json")
+        self._load_config()
+    
+    def _load_config(self) -> None:
+        """Load indexer configurations from file."""
+        try:
+            if self._config_file.exists():
+                with open(self._config_file, 'r') as f:
+                    data = json.load(f)
+                    for name, config_data in data.items():
+                        self._indexers[name] = IndexerConfig.from_dict(config_data)
+        except Exception as e:
+            from logger import setup_logger
+            logger = setup_logger(__name__)
+            logger.error(f"Failed to load indexer config: {e}")
+    
+    def _save_config(self) -> None:
+        """Save indexer configurations to file."""
+        try:
+            self._config_file.parent.mkdir(exist_ok=True)
+            data = {name: config.to_dict() for name, config in self._indexers.items()}
+            with open(self._config_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            from logger import setup_logger
+            logger = setup_logger(__name__)
+            logger.error(f"Failed to save indexer config: {e}")
+    
+    def add_or_update_indexer(self, indexer: IndexerConfig) -> None:
+        """Add or update an indexer configuration."""
+        with self._lock:
+            self._indexers[indexer.name] = indexer
+            self._save_config()
+    
+    def remove_indexer(self, name: str) -> None:
+        """Remove an indexer configuration."""
+        with self._lock:
+            if name in self._indexers:
+                del self._indexers[name]
+                self._save_config()
+    
+    def get_indexer(self, name: str) -> Optional[IndexerConfig]:
+        """Get a specific indexer configuration."""
+        with self._lock:
+            return self._indexers.get(name)
+    
+    def get_all_indexers(self) -> Dict[str, IndexerConfig]:
+        """Get all indexer configurations."""
+        with self._lock:
+            return self._indexers.copy()
+    
+    def get_enabled_indexers(self) -> List[IndexerConfig]:
+        """Get all enabled indexer configurations sorted by priority."""
+        with self._lock:
+            enabled = [config for config in self._indexers.values() if config.enabled]
+            return sorted(enabled, key=lambda x: x.priority)
+    
+    def list_providers_api_response(self) -> Dict[str, any]:
+        """Generate LazyLibrarian-style API response for listProviders."""
+        with self._lock:
+            providers = {}
+            for name, config in self._indexers.items():
+                providers[name] = {
+                    'name': config.name,
+                    'type': config.provider_type,
+                    'host': config.host,
+                    'enabled': config.enabled,
+                    'categories': ','.join(config.categories),
+                    'priority': config.priority,
+                    'altername': config.alternative_name or config.name
+                }
+            return providers
+
+# Global instances
 book_queue = BookQueue()
+indexer_manager = IndexerManager()
 
 @dataclass
 class SearchFilters:

@@ -17,9 +17,7 @@ DEFAULT_SLEEP = int(os.getenv("DEFAULT_SLEEP", "5"))
 USE_CF_BYPASS = string_to_bool(os.getenv("USE_CF_BYPASS", "true"))
 HTTP_PROXY = os.getenv("HTTP_PROXY", "").strip()
 HTTPS_PROXY = os.getenv("HTTPS_PROXY", "").strip()
-AA_DONATOR_KEY = os.getenv("AA_DONATOR_KEY", "").strip()
-_AA_BASE_URL = os.getenv("AA_BASE_URL", "auto").strip()
-_AA_ADDITIONAL_URLS = os.getenv("AA_ADDITIONAL_URLS", "").strip()
+# Removed Anna's Archive environment variables - replaced by Prowlarr integration
 _SUPPORTED_FORMATS = os.getenv("SUPPORTED_FORMATS", "epub,mobi,azw3,fb2,djvu,cbz,cbr").lower()
 _BOOK_LANGUAGE = os.getenv("BOOK_LANGUAGE", "en").lower()
 _CUSTOM_SCRIPT = os.getenv("CUSTOM_SCRIPT", "").strip()
@@ -27,7 +25,7 @@ FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 FLASK_PORT = int(os.getenv("FLASK_PORT", "8084"))
 DEBUG = string_to_bool(os.getenv("DEBUG", "false"))
 APP_ENV = os.getenv("APP_ENV", "N/A").lower()
-PRIORITIZE_WELIB = string_to_bool(os.getenv("PRIORITIZE_WELIB", "false"))
+# PRIORITIZE_WELIB removed - Anna's Archive specific setting
 
 # Version information from Docker build
 BUILD_VERSION = os.getenv("BUILD_VERSION", "N/A")
