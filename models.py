@@ -8,6 +8,7 @@ from threading import Lock, Event
 from pathlib import Path
 import queue
 import time
+import uuid
 from env import INGEST_DIR, STATUS_TIMEOUT
 import json
 
@@ -378,6 +379,67 @@ class BookQueue:
             self._status_timeout = timedelta(hours=hours)
 
 
+class APIKeyManager:
+    """Thread-safe API key manager."""
+    def __init__(self):
+        self._lock = Lock()
+        self._api_key: Optional[str] = None
+        self._api_key_file = Path("data/api_key.txt")
+        self._load_api_key()
+    
+    def _load_api_key(self) -> None:
+        """Load API key from file or generate new one."""
+        try:
+            if self._api_key_file.exists():
+                with open(self._api_key_file, 'r') as f:
+                    self._api_key = f.read().strip()
+                    if self._api_key:
+                        from logger import setup_logger
+                        logger = setup_logger(__name__)
+                        logger.info(f"Loaded existing API key")
+                        return
+            
+            # Generate new API key if file doesn't exist or is empty
+            self._generate_new_api_key()
+        except Exception as e:
+            from logger import setup_logger
+            logger = setup_logger(__name__)
+            logger.error(f"Failed to load API key: {e}")
+            self._generate_new_api_key()
+    
+    def _generate_new_api_key(self) -> None:
+        """Generate a new UUID-based API key."""
+        try:
+            self._api_key = str(uuid.uuid4())
+            
+            # Ensure data directory exists
+            self._api_key_file.parent.mkdir(exist_ok=True)
+            
+            # Save to file
+            with open(self._api_key_file, 'w') as f:
+                f.write(self._api_key)
+            
+            from logger import setup_logger
+            logger = setup_logger(__name__)
+            logger.info(f"Generated new API key and saved to {self._api_key_file}")
+            
+        except Exception as e:
+            from logger import setup_logger
+            logger = setup_logger(__name__)
+            logger.error(f"Failed to generate API key: {e}")
+            # Fallback to a temporary UUID if file operations fail
+            self._api_key = str(uuid.uuid4())
+    
+    def get_api_key(self) -> str:
+        """Get the current API key."""
+        with self._lock:
+            return self._api_key or "fallback-key"
+    
+    def is_valid_api_key(self, provided_key: str) -> bool:
+        """Check if the provided API key is valid."""
+        with self._lock:
+            return self._api_key and provided_key == self._api_key
+
 class IndexerManager:
     """Thread-safe indexer configuration manager."""
     def __init__(self):
@@ -458,6 +520,7 @@ class IndexerManager:
 
 # Global instances
 book_queue = BookQueue()
+api_key_manager = APIKeyManager()
 indexer_manager = IndexerManager()
 
 @dataclass

@@ -59,7 +59,7 @@ This application integrates seamlessly with [Prowlarr](https://prowlarr.com/) to
    - **Name**: `Calibre-Web-Book-Downloader` 
    - **Prowlarr Server**: `http://prowlarr:9696` (adjust to your setup)
    - **Application Server**: `http://calibre-web-automated-book-downloader:8084`
-   - **API Key**: Leave empty if authentication is disabled, or see [API Key Setup](#-api-key-setup) below
+   - **API Key**: Use the API key displayed in the application logs during startup
    - **Sync Categories**: Books (3000, 7000, 7020, etc.)
    - **Sync Level**: Full Sync (recommended)
 
@@ -75,48 +75,44 @@ This application integrates seamlessly with [Prowlarr](https://prowlarr.com/) to
 
 ## 🔐 API Key Setup
 
-### Authentication Options
+### Automatic API Key Generation
 
-The application supports two authentication modes:
+The application automatically generates a UUID-based API key on first startup:
 
-#### Option 1: No Authentication (Default)
-- Best for private networks or testing
-- No API key required
-- All Prowlarr integration works immediately
+- **API Key Location**: Stored in `data/api_key.txt` within the container
+- **Key Display**: API key is shown in the application logs during startup
+- **Prowlarr Configuration**: Use this API key when setting up the Prowlarr integration
+- **Security**: Each installation generates a unique API key automatically
 
-#### Option 2: Calibre-Web Authentication
-- Uses existing Calibre-Web user accounts
-- Secure for public-facing deployments
-- Requires additional configuration
+### Finding Your API Key
 
-### Enabling Authentication
+1. **Check Application Logs**: The API key is displayed when the application starts
+   ```bash
+   docker logs calibre-web-automated-book-downloader
+   ```
+   Look for the line: `API Key for Prowlarr integration: <your-uuid-key>`
 
-To enable authentication, set the `CWA_DB_PATH` environment variable to point to your Calibre-Web's `app.db` file:
+2. **Direct File Access**: API key is stored in the container's data directory
+   ```bash
+   docker exec calibre-web-automated-book-downloader cat data/api_key.txt
+   ```
+
+### Additional Authentication (Optional)
+
+You can also enable Calibre-Web user authentication for the web interface:
+
+To enable additional web interface authentication, set the `CWA_DB_PATH` environment variable to point to your Calibre-Web's `app.db` file:
 
 ```yaml
 services:
   calibre-web-automated-book-downloader:
     environment:
-      CWA_DB_PATH: /auth/app.db  # Enable authentication
+      CWA_DB_PATH: /auth/app.db  # Enable web interface authentication
     volumes:
       - /path/to/calibre-web/app.db:/auth/app.db:ro  # Mount Calibre-Web DB
 ```
 
-### Using with Authentication
-
-When authentication is enabled:
-
-1. **Prowlarr Setup**: Use your Calibre-Web username/password for Basic Auth
-2. **API Access**: Prowlarr will use HTTP Basic Authentication
-3. **Web Interface**: Login with your Calibre-Web credentials
-
-### API Key Generation (Advanced)
-
-Currently, the app uses Calibre-Web's existing user system. If you need dedicated API keys:
-
-1. Create a service user in Calibre-Web (e.g., `prowlarr-service`)
-2. Use those credentials in Prowlarr's application configuration
-3. This provides audit trails and can be easily revoked if needed
+**Note**: The API key is always required for Prowlarr integration regardless of web interface authentication settings.
 
 ## ⚙️ Configuration
 

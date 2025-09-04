@@ -1,9 +1,6 @@
 services:
   calibre-web-automated-book-downloader:
-    #image: ghcr.io/calibrain/calibre-web-automated-book-downloader:latest
-    # Uncomment to build the image from the Dockerfile for local testing changes.
-    # Remember to comment out the image line above.
-    build: .
+    image: ghcr.io/apium/calibre-web-automated-book-downloader@sha256:2cc5a0f8afb84eab860db687201656f03fc67f477d81da8c17c7242b7f3020f9
     container_name: calibre-web-automated-book-downloader
     environment:
       FLASK_PORT: 8084

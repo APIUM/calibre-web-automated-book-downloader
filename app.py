@@ -16,7 +16,7 @@ from config import _SUPPORTED_BOOK_LANGUAGE, BOOK_LANGUAGE
 from env import FLASK_HOST, FLASK_PORT, APP_ENV, CWA_DB_PATH, DEBUG, USING_EXTERNAL_BYPASSER, BUILD_VERSION, RELEASE_VERSION
 import backend
 
-from models import SearchFilters, indexer_manager, IndexerConfig
+from models import SearchFilters, indexer_manager, IndexerConfig, api_key_manager
 
 logger = setup_logger(__name__)
 app = Flask(__name__)
@@ -470,13 +470,14 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
     api_key = request.args.get('apikey')
     cmd = request.args.get('cmd')
     
-    # Skip API key validation for test command to allow Prowlarr connectivity test
+    # API key validation - required for all commands except 'test'
     if cmd != 'test':
-        # Validate using existing authentication if CWA_DB_PATH is set
-        if CWA_DB_PATH is not None:
-            if not authenticate():
-                return jsonify({"error": "Unauthorized"}), 401
-        # If no CWA_DB_PATH is configured, allow all requests (no authentication required)
+        # Check if API key is provided and valid
+        if not api_key:
+            return jsonify({"error": "API key required"}), 401
+        
+        if not api_key_manager.is_valid_api_key(api_key):
+            return jsonify({"error": "Invalid API key"}), 401
     
     try:
         if cmd == 'listProviders':
@@ -603,7 +604,10 @@ register_dual_routes(app)
 logger.log_resource_usage()
 
 if __name__ == '__main__':
+    # Display API key on startup for Prowlarr configuration
     logger.info(f"Starting Flask application on {FLASK_HOST}:{FLASK_PORT} IN {APP_ENV} mode")
+    logger.info(f"API Key for Prowlarr integration: {api_key_manager.get_api_key()}")
+    
     app.run(
         host=FLASK_HOST,
         port=FLASK_PORT,
