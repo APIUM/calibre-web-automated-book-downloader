@@ -2,15 +2,17 @@
 
 ![Calibre-Web Automated Book Downloader](static/media/logo.png 'Calibre-Web Automated Book Downloader')
 
-An intuitive web interface for searching and requesting book downloads, designed to work seamlessly with [Calibre-Web-Automated](https://github.com/crocodilestick/Calibre-Web-Automated). This project streamlines the process of downloading books and preparing them for integration into your Calibre library.
+An intuitive web interface for searching and requesting book downloads from multiple sources via Prowlarr integration. Designed to work seamlessly with [Calibre-Web-Automated](https://github.com/crocodilestick/Calibre-Web-Automated), this project streamlines the process of downloading books and preparing them for integration into your Calibre library.
 
 ## ✨ Features
 
 - 🌐 User-friendly web interface for book search and download
-- 🔄 Automated download to your specified ingest folder
+- 🔗 **Prowlarr Integration**: Search across multiple indexers simultaneously
+- 🔄 Automated download to your specified ingest folder  
 - 🔌 Seamless integration with Calibre-Web-Automated
 - 📖 Support for multiple book formats (epub, mobi, azw3, fb2, djvu, cbz, cbr)
-- 🛡️ Cloudflare bypass capability for reliable downloads
+- 🏷️ **LazyLibrarian Compatible**: Works as a drop-in replacement in Prowlarr
+- ⚡ Concurrent download management with retry logic
 - 🐳 Docker-based deployment for quick setup
 
 ## 🖼️ Screenshots
@@ -45,6 +47,77 @@ An intuitive web interface for searching and requesting book downloads, designed
 
 3. Access the web interface at `http://localhost:8084`
 
+## 🔗 Prowlarr Integration
+
+This application integrates seamlessly with [Prowlarr](https://prowlarr.com/) to provide multi-indexer book searching. Prowlarr manages all indexer configurations centrally, eliminating the need for manual setup.
+
+### Setting up Prowlarr Integration
+
+1. **In Prowlarr**: Go to Settings → Apps → Add Application
+2. **Select**: LazyLibrarian (this app is fully compatible)
+3. **Configure**:
+   - **Name**: `Calibre-Web-Book-Downloader` 
+   - **Prowlarr Server**: `http://prowlarr:9696` (adjust to your setup)
+   - **Application Server**: `http://calibre-web-automated-book-downloader:8084`
+   - **API Key**: Leave empty if authentication is disabled, or see [API Key Setup](#-api-key-setup) below
+   - **Sync Categories**: Books (3000, 7000, 7020, etc.)
+   - **Sync Level**: Full Sync (recommended)
+
+4. **Test**: Click "Test" - should show green checkmark
+5. **Save**: Prowlarr will automatically sync all your indexers!
+
+### How It Works
+
+- **Indexer Sync**: Prowlarr automatically configures all enabled book indexers in this app
+- **Multi-Source Search**: Searches run across all indexers simultaneously for better results  
+- **Priority-Based**: Results ranked by indexer priority and format preference
+- **Automatic Updates**: When you add/remove indexers in Prowlarr, changes sync automatically
+
+## 🔐 API Key Setup
+
+### Authentication Options
+
+The application supports two authentication modes:
+
+#### Option 1: No Authentication (Default)
+- Best for private networks or testing
+- No API key required
+- All Prowlarr integration works immediately
+
+#### Option 2: Calibre-Web Authentication
+- Uses existing Calibre-Web user accounts
+- Secure for public-facing deployments
+- Requires additional configuration
+
+### Enabling Authentication
+
+To enable authentication, set the `CWA_DB_PATH` environment variable to point to your Calibre-Web's `app.db` file:
+
+```yaml
+services:
+  calibre-web-automated-book-downloader:
+    environment:
+      CWA_DB_PATH: /auth/app.db  # Enable authentication
+    volumes:
+      - /path/to/calibre-web/app.db:/auth/app.db:ro  # Mount Calibre-Web DB
+```
+
+### Using with Authentication
+
+When authentication is enabled:
+
+1. **Prowlarr Setup**: Use your Calibre-Web username/password for Basic Auth
+2. **API Access**: Prowlarr will use HTTP Basic Authentication
+3. **Web Interface**: Login with your Calibre-Web credentials
+
+### API Key Generation (Advanced)
+
+Currently, the app uses Calibre-Web's existing user system. If you need dedicated API keys:
+
+1. Create a service user in Calibre-Web (e.g., `prowlarr-service`)
+2. Use those credentials in Prowlarr's application configuration
+3. This provides audit trails and can be easily revoked if needed
+
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -66,41 +139,28 @@ An intuitive web interface for searching and requesting book downloads, designed
 
 If you wish to enable authentication, you must set `CWA_DB_PATH` to point to Calibre-Web's `app.db`, in order to match the username and password.
 
-If logging is enabld, log folder default location is `/var/log/cwa-book-downloader`
+If logging is enabled, log folder default location is `/var/log/cwa-book-downloader`
 Available log levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Higher levels show fewer messages.
-
-Note that if using TOR, the TZ will be calculated automatically based on IP.
 
 #### Download Settings
 
 | Variable               | Description                                               | Default Value                     |
 | ---------------------- | --------------------------------------------------------- | --------------------------------- |
-| `MAX_RETRY`            | Maximum retry attempts                                    | `3`                               |
+| `MAX_RETRY`            | Maximum retry attempts for failed downloads               | `3`                               |
 | `DEFAULT_SLEEP`        | Retry delay (seconds)                                     | `5`                               |
 | `MAIN_LOOP_SLEEP_TIME` | Processing loop delay (seconds)                           | `5`                               |
 | `SUPPORTED_FORMATS`    | Supported book formats                                    | `epub,mobi,azw3,fb2,djvu,cbz,cbr` |
 | `BOOK_LANGUAGE`        | Preferred language for books                              | `en`                              |
-| `AA_DONATOR_KEY`       | Optional Donator key for Anna's Archive fast download API | ``                                |
 | `USE_BOOK_TITLE`       | Use book title as filename instead of ID                  | `false`                           |
-| `PRIORITIZE_WELIB`     | When downloading, download from WELIB first instead of AA | `false`                           |
+| `MAX_CONCURRENT_DOWNLOADS` | Maximum simultaneous downloads                        | `3`                               |
+| `DOWNLOAD_PROGRESS_UPDATE_INTERVAL` | Progress update frequency (seconds)           | `5`                               |
 
 If you change `BOOK_LANGUAGE`, you can add multiple comma separated languages, such as `en,fr,ru` etc.  
-
-#### AA 
-
-| Variable               | Description                                               | Default Value                     |
-| ---------------------- | --------------------------------------------------------- | --------------------------------- |
-| `AA_BASE_URL`          | Base URL of Annas-Archive (could be changed for a proxy)  | `https://annas-archive.org`       |
-| `USE_CF_BYPASS`        | Disable CF bypass and use alternative links instead       | `true`                            |
-
-If you are a donator on AA, you can use your Key in `AA_DONATOR_KEY` to speed up downloads and bypass the wait times.
-If disabling the cloudflare bypass, you will be using alternative download hosts, such as libgen or z-lib, but they usually have a delay before getting the more recent books and their collection is not as big as aa's. But this setting should work for the majority of books.
 
 #### Network Settings
 
 | Variable               | Description                     | Default Value           |
 | ---------------------- | ------------------------------- | ----------------------- |
-| `AA_ADDITIONAL_URLS`   | Proxy URLs for AA (, separated) | ``                      |
 | `HTTP_PROXY`           | HTTP proxy URL                  | ``                      |
 | `HTTPS_PROXY`          | HTTPS proxy URL                 | ``                      |
 | `CUSTOM_DNS`           | Custom DNS IP                   | ``                      |
@@ -175,71 +235,6 @@ volumes:
 
 Mount should align with your Calibre-Web-Automated ingest folder.
 
-## Variants:
-
-### 🧅 Tor Variant
-
-This application also offers a variant that routes all its traffic through the Tor network. This can be useful for enhanced privacy or bypassing network restrictions.
-
-To use the Tor variant:
-
-1.  Get the Tor-specific docker-compose file:
-    ```bash
-    curl -O https://raw.githubusercontent.com/calibrain/calibre-web-automated-book-downloader/refs/heads/main/docker-compose.tor.yml
-    ```
-2.  Start the service using this file:
-    ```bash
-    docker compose -f docker-compose.tor.yml up -d
-    ```
-
-**Important Considerations for Tor:**
-
-*   **Capabilities:** This variant requires the `NET_ADMIN` and `NET_RAW` Docker capabilities to configure `iptables` for transparent Tor proxying.
-*   **Timezone:** When running in Tor mode, the container will attempt to determine the timezone based on the Tor exit node's IP address and set it automatically. This will override the `TZ` environment variable if it is set.
-*   **Network Settings:** Custom DNS, DoH, and HTTP(S) proxy settings (`CUSTOM_DNS`, `USE_DOH`, `HTTP_PROXY`, `HTTPS_PROXY`) are ignored when using the Tor variant, as all traffic goes through Tor.
-
-### External Cloudflare resolver variant
-
-This variant allows the application to use an external service to bypass Cloudflare protection, instead of relying on the built-in bypasser. This is useful if you already have a dedicated Cloudflare resolver (such as [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) or compatible services like [ByParr](https://github.com/ThePhaseless/Byparr)) running elsewhere.
-
-#### How it works:
-
-- When enabled, all requests that require Cloudflare bypass are sent to your external resolver service.
-- The application communicates with the resolver using its API.
-- This approach can improve reliability and performance, especially if your external resolver is optimized or shared across multiple applications.
-
-#### Configuration
-
-| Variable               | Description                                                 | Default Value           |
-| ---------------------- | ----------------------------------------------------------- | ----------------------- |
-| `EXT_BYPASSER_URL`     | The full URL of your external resolver (required)           |                         |
-| `EXT_BYPASSER_PATH`    | API path for the resolver (usually `/v1`)                   | `/v1`                   |
-| `EXT_BYPASSER_TIMEOUT` | Timeout for page loading (in milliseconds)                  | `60000`                 |
-
-#### Important
-
-This feature follows the same configuration of the built-in Cloudflare bypasser, so you should turn on the `USE_CF_BYPASS` configuration to enable it.
-
-#### To use the External Cloudflare resolver variant:
-
-1.  Get the extbp-specific docker-compose file:
-    ```bash
-    curl -O https://raw.githubusercontent.com/calibrain/calibre-web-automated-book-downloader/refs/heads/main/docker-compose.extbp.yml
-    ```
-2.  Start the service using this file:
-    ```bash
-    docker compose -f docker-compose.extbp.yml up -d
-    ```
-
-#### Compatibility:
-This feature is designed to work with any resolver that implements the `FlareSolverr` API schema, including `ByParr` and similar projects.
-
-#### Benefits:
-
-- Centralizes Cloudflare bypass logic for easier maintenance.
-- Can leverage more powerful or distributed resolver infrastructure.
-- Reduces load on the main application container.
-
 ## 🏗️ Architecture
 
 The application consists of a single service:
@@ -250,9 +245,9 @@ The application consists of a single service:
 
 Built-in health checks monitor:
 
-- Web interface availability
+- Web interface availability  
 - Download service status
-- Cloudflare bypass service connection
+- Prowlarr integration connectivity
 
 Checks run every 30 seconds with a 30-second timeout and 3 retries.
 You can enable by adding this to your compose :
@@ -280,7 +275,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Copyright Notice
 
-While this tool can access various sources including those that might contain copyrighted material (e.g., Anna's Archive), it is designed for legitimate use only. Users are responsible for:
+While this tool can access various sources including those that might contain copyrighted material, it is designed for legitimate use only. Users are responsible for:
 
 - Ensuring they have the right to download requested materials
 - Respecting copyright laws and intellectual property rights

@@ -472,12 +472,11 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
     
     # Skip API key validation for test command to allow Prowlarr connectivity test
     if cmd != 'test':
-        # Validate API key using existing authentication if CWA_DB_PATH is set
+        # Validate using existing authentication if CWA_DB_PATH is set
         if CWA_DB_PATH is not None:
             if not authenticate():
                 return jsonify({"error": "Unauthorized"}), 401
-        elif not api_key:
-            return jsonify({"error": "API key required"}), 401
+        # If no CWA_DB_PATH is configured, allow all requests (no authentication required)
     
     try:
         if cmd == 'listProviders':
