@@ -533,13 +533,28 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
             response.headers['Content-Type'] = 'application/json'
             return response
         
+        elif cmd == 'getVersion':
+            logger.info("Processing getVersion command")
+            # Return version info matching LazyLibrarian's exact format
+            version_data = {
+                "install_type": "source",
+                "current_version": "1.0.0-prowlarr-compatible",
+                "latest_version": "1.0.0-prowlarr-compatible", 
+                "commits_behind": 0
+            }
+            logger.debug(f"getVersion response: {version_data}")
+            response = jsonify(version_data)
+            response.headers['Content-Type'] = 'application/json'
+            return response
+        
         elif cmd == 'help':
             logger.info("Processing help command")
             # Return available commands
             commands = {
                 'listProviders': 'List all configured indexers',
                 'changeProvider': 'Add or modify an indexer configuration',
-                'test': 'Test API connectivity'
+                'test': 'Test API connectivity',
+                'getVersion': 'Get LazyLibrarian version info'
             }
             logger.debug(f"Help response: {commands}")
             response = jsonify(commands)
