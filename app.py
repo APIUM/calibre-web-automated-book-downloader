@@ -470,20 +470,33 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
     api_key = request.args.get('apikey')
     cmd = request.args.get('cmd')
     
+    logger.info(f"API request: cmd={cmd}, api_key={'***' if api_key else 'None'}, args={dict(request.args)}")
+    
     # API key validation - required for all commands except 'test'
     if cmd != 'test':
+        logger.debug(f"Validating API key for command: {cmd}")
         # Check if API key is provided and valid
         if not api_key:
+            logger.warning("API key missing for non-test command")
             return jsonify({"error": "API key required"}), 401
         
         if not api_key_manager.is_valid_api_key(api_key):
+            logger.warning("Invalid API key provided")
             return jsonify({"error": "Invalid API key"}), 401
+        
+        logger.debug("API key validation successful")
     
     try:
         if cmd == 'listProviders':
-            return jsonify(indexer_manager.list_providers_api_response())
+            logger.info("Processing listProviders command")
+            response_data = indexer_manager.list_providers_api_response()
+            logger.debug(f"listProviders response: {response_data}")
+            response = jsonify(response_data)
+            response.headers['Content-Type'] = 'application/json'
+            return response
         
         elif cmd == 'changeProvider':
+            logger.info("Processing changeProvider command")
             # Extract provider data from URL parameters
             provider_data = {
                 'name': request.args.get('name'),
@@ -496,7 +509,10 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
                 'altername': request.args.get('altername')
             }
             
+            logger.debug(f"Provider data: {provider_data}")
+            
             if not provider_data['name'] or not provider_data['host']:
+                logger.warning(f"Missing required parameters - name: {provider_data['name']}, host: {provider_data['host']}")
                 return jsonify({"error": "Missing required parameters: name, host"}), 400
             
             # Create and store indexer configuration
@@ -504,22 +520,34 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
             indexer_manager.add_or_update_indexer(indexer_config)
             
             logger.info(f"Added/updated indexer from Prowlarr: {indexer_config.name}")
-            return jsonify({"status": "OK"})
+            response = jsonify({"status": "OK"})
+            response.headers['Content-Type'] = 'application/json'
+            return response
         
         elif cmd == 'test':
+            logger.info("Processing test command")
             # Simple connectivity test for Prowlarr
-            return jsonify({"status": "OK", "version": "1.0", "api": "prowlarr-compatible"})
+            response_data = {"status": "OK", "version": "1.0", "api": "prowlarr-compatible"}
+            logger.debug(f"Test response: {response_data}")
+            response = jsonify(response_data)
+            response.headers['Content-Type'] = 'application/json'
+            return response
         
         elif cmd == 'help':
+            logger.info("Processing help command")
             # Return available commands
             commands = {
                 'listProviders': 'List all configured indexers',
                 'changeProvider': 'Add or modify an indexer configuration',
                 'test': 'Test API connectivity'
             }
-            return jsonify(commands)
+            logger.debug(f"Help response: {commands}")
+            response = jsonify(commands)
+            response.headers['Content-Type'] = 'application/json'
+            return response
         
         else:
+            logger.warning(f"Unknown command received: {cmd}")
             return jsonify({"error": f"Unknown command: {cmd}"}), 400
             
     except Exception as e:

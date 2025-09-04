@@ -70,7 +70,7 @@ class IndexerConfig:
             provider_type=data.get('type', data.get('providertype', 'newznab')),
             host=data['host'],
             api_key=data.get('prov_apikey', data.get('api_key', '')),
-            enabled=data.get('enabled', True),
+            enabled=str(data.get('enabled', 'true')).lower() == 'true',
             categories=categories,
             priority=int(data.get('priority', data.get('dlpriority', 0))),
             alternative_name=data.get('altername')
@@ -505,18 +505,32 @@ class IndexerManager:
     def list_providers_api_response(self) -> Dict[str, any]:
         """Generate LazyLibrarian-style API response for listProviders."""
         with self._lock:
-            providers = {}
-            for name, config in self._indexers.items():
-                providers[name] = {
-                    'name': config.name,
-                    'type': config.provider_type,
-                    'host': config.host,
-                    'enabled': config.enabled,
-                    'categories': ','.join(config.categories),
-                    'priority': config.priority,
-                    'altername': config.alternative_name or config.name
+            # Separate indexers by type for proper LazyLibrarian format
+            newznabs = []
+            torznabs = []
+            
+            for config in self._indexers.values():
+                provider_data = {
+                    "ENABLED": bool(config.enabled),  # Ensure boolean, never null
+                    "NAME": config.name,
+                    "HOST": config.host,
+                    "API": config.api_key or "",  # Ensure string, never null
+                    "CATEGORIES": ','.join(config.categories) if config.categories else "",
+                    "PRIORITY": int(config.priority) if config.priority is not None else 0
                 }
-            return providers
+                
+                if config.provider_type.lower() == 'torznab':
+                    torznabs.append(provider_data)
+                else:  # Default to newznab
+                    newznabs.append(provider_data)
+            
+            return {
+                "Data": {
+                    "Newznabs": newznabs,
+                    "Torznabs": torznabs,
+                    "RSS": []  # Empty RSS providers list as we don't support them
+                }
+            }
 
 # Global instances
 book_queue = BookQueue()
