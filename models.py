@@ -510,13 +510,31 @@ class IndexerManager:
             torznabs = []
             
             for config in self._indexers.values():
+                # Match LazyLibrarian's exact field structure
                 provider_data = {
-                    "ENABLED": bool(config.enabled),  # Ensure boolean, never null
                     "NAME": config.name,
+                    "DISPNAME": config.alternative_name or "",
+                    "ENABLED": "1" if config.enabled else "",
                     "HOST": config.host,
-                    "API": config.api_key or "",  # Ensure string, never null
-                    "CATEGORIES": ','.join(config.categories) if config.categories else "",
-                    "PRIORITY": int(config.priority) if config.priority is not None else 0
+                    "API": config.api_key or "",
+                    "GENERALSEARCH": "",
+                    "BOOKSEARCH": "",
+                    "MAGSEARCH": "",
+                    "AUDIOSEARCH": "",
+                    "COMICSEARCH": "",
+                    "BOOKCAT": ','.join(config.categories) if config.categories else "7000,7020",
+                    "MAGCAT": "",
+                    "AUDIOCAT": "",
+                    "COMICCAT": "",
+                    "EXTENDED": "1",
+                    "UPDATED": "",
+                    "MANUAL": "",
+                    "APILIMIT": "0",
+                    "APICOUNT": "0",
+                    "RATELIMIT": "0",
+                    "DLPRIORITY": str(config.priority) if config.priority is not None else "0",
+                    "DLTYPES": "",
+                    "LASTUSED": "0"
                 }
                 
                 if config.provider_type.lower() == 'torznab':
@@ -524,12 +542,10 @@ class IndexerManager:
                 else:  # Default to newznab
                     newznabs.append(provider_data)
             
+            # Use lowercase keys without Data wrapper to match LazyLibrarian
             return {
-                "Data": {
-                    "Newznabs": newznabs,
-                    "Torznabs": torznabs,
-                    "RSS": []  # Empty RSS providers list as we don't support them
-                }
+                "newznab": newznabs,
+                "torznab": torznabs
             }
 
 # Global instances

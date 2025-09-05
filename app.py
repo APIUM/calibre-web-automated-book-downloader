@@ -457,7 +457,7 @@ def api_clear_completed() -> Union[Response, Tuple[Response, int]]:
 
 # Prowlarr API Endpoints (LazyLibrarian Compatible)
 
-@app.route('/api', methods=['GET'])
+@app.route('/api', methods=['GET', 'POST'])
 def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
     """
     Prowlarr-compatible API endpoint matching LazyLibrarian interface.
@@ -467,24 +467,29 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
     - changeProvider: Add/modify indexer configuration from Prowlarr
     - test: Test endpoint for Prowlarr connectivity
     """
-    api_key = request.args.get('apikey')
-    cmd = request.args.get('cmd')
+    # Handle both GET and POST parameters
+    if request.method == 'POST':
+        # For POST requests, check both form data and URL args
+        api_key = request.form.get('apikey') or request.args.get('apikey')
+        cmd = request.form.get('cmd') or request.args.get('cmd')
+    else:
+        api_key = request.args.get('apikey')
+        cmd = request.args.get('cmd')
     
     logger.info(f"API request: cmd={cmd}, api_key={'***' if api_key else 'None'}, args={dict(request.args)}")
     
-    # API key validation - required for all commands except 'test'
-    if cmd != 'test':
-        logger.debug(f"Validating API key for command: {cmd}")
-        # Check if API key is provided and valid
-        if not api_key:
-            logger.warning("API key missing for non-test command")
-            return jsonify({"error": "API key required"}), 401
-        
-        if not api_key_manager.is_valid_api_key(api_key):
-            logger.warning("Invalid API key provided")
-            return jsonify({"error": "Invalid API key"}), 401
-        
-        logger.debug("API key validation successful")
+    # API key validation - required for all commands
+    logger.debug(f"Validating API key for command: {cmd}")
+    # Check if API key is provided and valid
+    if not api_key:
+        logger.warning("API key missing")
+        return jsonify({"error": "API key required"}), 401
+    
+    if not api_key_manager.is_valid_api_key(api_key):
+        logger.warning("Invalid API key provided")
+        return jsonify({"error": "Invalid API key"}), 401
+    
+    logger.debug("API key validation successful")
     
     try:
         if cmd == 'listProviders':
@@ -497,16 +502,20 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
         
         elif cmd == 'changeProvider':
             logger.info("Processing changeProvider command")
-            # Extract provider data from URL parameters
+            # Extract provider data from both POST form and URL parameters
+            params = request.form if request.method == 'POST' else request.args
+            # Fall back to args if not in form
+            get_param = lambda key, default='': params.get(key, request.args.get(key, default))
+            
             provider_data = {
-                'name': request.args.get('name'),
-                'type': request.args.get('type', request.args.get('providertype', 'newznab')),
-                'host': request.args.get('host'),
-                'prov_apikey': request.args.get('prov_apikey', ''),
-                'enabled': request.args.get('enabled', 'true').lower() == 'true',
-                'categories': request.args.get('categories', ''),
-                'priority': request.args.get('dlpriority', request.args.get('priority', '0')),
-                'altername': request.args.get('altername')
+                'name': get_param('name'),
+                'type': get_param('type', get_param('providertype', 'newznab')),
+                'host': get_param('host'),
+                'prov_apikey': get_param('prov_apikey', ''),
+                'enabled': get_param('enabled', 'true').lower() == 'true',
+                'categories': get_param('categories', ''),
+                'priority': get_param('dlpriority', get_param('priority', '0')),
+                'altername': get_param('altername')
             }
             
             logger.debug(f"Provider data: {provider_data}")
@@ -537,6 +546,7 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
             logger.info("Processing getVersion command")
             # Return version info matching LazyLibrarian's exact format
             version_data = {
+                "Success": True,
                 "install_type": "source",
                 "current_version": "1.0.0-prowlarr-compatible",
                 "latest_version": "1.0.0-prowlarr-compatible", 
