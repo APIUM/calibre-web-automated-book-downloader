@@ -492,15 +492,15 @@ def prowlarr_api() -> Union[Response, Tuple[Response, int]]:
     logger.debug("API key validation successful")
     
     try:
-        if cmd == 'listProviders':
-            logger.info("Processing listProviders command")
+        if cmd in ['listProviders', 'listNabProviders']:
+            logger.info(f"Processing {cmd} command")
             response_data = indexer_manager.list_providers_api_response()
             logger.debug(f"listProviders response: {response_data}")
             response = jsonify(response_data)
             response.headers['Content-Type'] = 'application/json'
             return response
         
-        elif cmd == 'changeProvider':
+        elif cmd in ['changeProvider', 'addProvider']:
             logger.info("Processing changeProvider command")
             # Extract provider data from both POST form and URL parameters
             params = request.form if request.method == 'POST' else request.args

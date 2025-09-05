@@ -52,6 +52,7 @@ class IndexerConfig:
             'name': self.name,
             'type': self.provider_type,
             'host': self.host,
+            'api_key': self.api_key,  # Include API key for storage
             'enabled': self.enabled,
             'categories': ','.join(self.categories),
             'priority': self.priority,
@@ -514,7 +515,7 @@ class IndexerManager:
                 provider_data = {
                     "NAME": config.name,
                     "DISPNAME": config.alternative_name or "",
-                    "ENABLED": "1" if config.enabled else "",
+                    "ENABLED": config.enabled,  # Boolean, not string
                     "HOST": config.host,
                     "API": config.api_key or "",
                     "GENERALSEARCH": "",
@@ -526,15 +527,15 @@ class IndexerManager:
                     "MAGCAT": "",
                     "AUDIOCAT": "",
                     "COMICCAT": "",
-                    "EXTENDED": "1",
+                    "EXTENDED": True,  # Boolean, not string
                     "UPDATED": "",
-                    "MANUAL": "",
-                    "APILIMIT": "0",
-                    "APICOUNT": "0",
-                    "RATELIMIT": "0",
-                    "DLPRIORITY": str(config.priority) if config.priority is not None else "0",
+                    "MANUAL": False,  # Boolean
+                    "APILIMIT": 0,  # Integer
+                    "APICOUNT": 0,  # Integer  
+                    "RATELIMIT": 0,  # Integer
+                    "DLPRIORITY": config.priority if config.priority is not None else 0,  # Integer
                     "DLTYPES": "",
-                    "LASTUSED": "0"
+                    "LASTUSED": 0  # Integer
                 }
                 
                 if config.provider_type.lower() == 'torznab':
@@ -542,10 +543,13 @@ class IndexerManager:
                 else:  # Default to newznab
                     newznabs.append(provider_data)
             
-            # Use lowercase keys without Data wrapper to match LazyLibrarian
+            # Use Data wrapper with capitalized keys for Prowlarr compatibility
             return {
-                "newznab": newznabs,
-                "torznab": torznabs
+                "Success": True,
+                "Data": {
+                    "Newznabs": newznabs,
+                    "Torznabs": torznabs
+                }
             }
 
 # Global instances

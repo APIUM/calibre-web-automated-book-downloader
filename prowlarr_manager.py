@@ -18,6 +18,9 @@ from models import BookInfo, SearchFilters, indexer_manager, IndexerConfig
 
 logger = setup_logger(__name__)
 
+# Cache for search results to support book detail retrieval
+_last_search_results: Optional[List['SearchResult']] = None
+
 @dataclass
 class SearchResult:
     """Represents a search result from a single indexer."""
@@ -70,6 +73,10 @@ def search_books(query: str, filters: SearchFilters) -> List[BookInfo]:
     
     # Sort results by indexer priority, then by format preference
     sorted_results = _rank_and_deduplicate_results(all_results)
+    
+    # Cache the search results for detail retrieval
+    global _last_search_results
+    _last_search_results = all_results
     
     logger.info(f"Returning {len(sorted_results)} deduplicated results")
     return sorted_results
@@ -135,18 +142,30 @@ def _build_search_url(indexer: IndexerConfig, query: str, filters: SearchFilters
     
     # Build final URL
     param_string = '&'.join([f"{k}={quote(str(v))}" for k, v in params.items()])
-    search_url = f"{base_url}/api?{param_string}"
+    # Check if base_url already ends with /api (from Prowlarr)
+    if base_url.endswith('/api'):
+        search_url = f"{base_url}?{param_string}"
+    else:
+        search_url = f"{base_url}/api?{param_string}"
     
     return search_url
 
 def _parse_newznab_xml(xml_content: str, indexer_name: str) -> List[BookInfo]:
     """Parse Newznab/Torznab XML response into BookInfo objects."""
     try:
+        # Log first 500 chars of response for debugging
+        logger.debug(f"XML response from {indexer_name} (first 500 chars): {xml_content[:500]}")
+        
         root = ET.fromstring(xml_content)
         books = []
         
         # Find all items in the RSS/channel structure
         items = root.findall('.//item')
+        
+        # Debug: Log first item's full XML structure
+        if items and logger.level <= 10:  # Only in DEBUG mode
+            first_item_str = ET.tostring(items[0], encoding='unicode')[:1000]
+            logger.debug(f"First item XML from {indexer_name}: {first_item_str}")
         
         for item in items:
             try:
@@ -159,7 +178,7 @@ def _parse_newznab_xml(xml_content: str, indexer_name: str) -> List[BookInfo]:
         
         return books
         
-    except ET.XMLSyntaxError as e:
+    except ET.ParseError as e:
         logger.error(f"XML parsing error for {indexer_name}: {e}")
         return []
     except Exception as e:
@@ -185,6 +204,12 @@ def _parse_newznab_item(item: ET.Element, indexer_name: str) -> Optional[BookInf
     
     # Extract extended attributes
     attrs = _extract_newznab_attributes(item)
+    
+    # Debug: Log what attributes we found
+    if attrs:
+        logger.debug(f"Attributes found for {title}: {attrs}")
+    else:
+        logger.debug(f"No attributes found for {title}")
     
     # Parse title and author from title field (common format: "Author - Title")
     parsed_title, parsed_author = _parse_title_author(title)
@@ -340,8 +365,8 @@ def _rank_and_deduplicate_results(results: List[SearchResult]) -> List[BookInfo]
 def get_book_info(book_id: str) -> BookInfo:
     """Get detailed information for a specific book.
     
-    For Prowlarr integration, we may need to re-query indexers
-    if the book wasn't found in our initial search results.
+    For Prowlarr integration, we check our search results cache first,
+    then fall back to creating minimal info if not found.
 
     Args:
         book_id: Book identifier
@@ -349,13 +374,21 @@ def get_book_info(book_id: str) -> BookInfo:
     Returns:
         BookInfo: Detailed book information
     """
-    # For now, we'll need to implement book detail retrieval
-    # This might involve searching for the specific book ID across indexers
-    # or maintaining a cache of book details from searches
+    # Check if we have this book in our search results cache
+    global _last_search_results
+    if _last_search_results:
+        for result in _last_search_results:
+            if result.book.id == book_id:
+                return result.book
     
-    # TODO: Implement detailed book info retrieval
-    # For now, raise an exception to indicate the book wasn't found
-    raise Exception(f"Book details not available for ID: {book_id}")
+    # If not found in cache, create minimal BookInfo
+    # The ID might be a composite like "indexer_bookid" 
+    logger.warning(f"Book {book_id} not found in search cache, creating minimal info")
+    return BookInfo(
+        id=book_id,
+        title=f"Book {book_id}",
+        description="Book details not available - please search again to get full information"
+    )
 
 def download_book(book_info: BookInfo, book_path: Path, 
                  progress_callback: Optional[Callable[[float], None]] = None, 
